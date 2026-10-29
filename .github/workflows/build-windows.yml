@@ -77,12 +77,33 @@ jobs:
           print("Export templates installed at:", template_dir)
           PY
 
-      - name: Validate project and import resources
+      - name: Validate scripts and smoke-test startup
         shell: bash
         run: |
+          set -euo pipefail
           GODOT_BIN="$(cat .ci/godot_path)"
           "$GODOT_BIN" --version
-          "$GODOT_BIN" --headless --editor --path . --quit
+          mkdir -p .ci/logs
+
+          set +e
+          "$GODOT_BIN" --headless --editor --path . --quit > .ci/logs/editor.log 2>&1
+          editor_status=$?
+          set -e
+          cat .ci/logs/editor.log
+          if [ "$editor_status" -ne 0 ] || grep -Eiq 'SCRIPT ERROR:|Parse Error:|Failed to load script|ERROR:' .ci/logs/editor.log; then
+            echo "::error::Godot project validation failed."
+            exit 1
+          fi
+
+          set +e
+          "$GODOT_BIN" --headless --path . --quit-after 120 > .ci/logs/runtime.log 2>&1
+          runtime_status=$?
+          set -e
+          cat .ci/logs/runtime.log
+          if [ "$runtime_status" -ne 0 ] || grep -Eiq 'SCRIPT ERROR:|Parse Error:|Failed to load script|ERROR:' .ci/logs/runtime.log; then
+            echo "::error::RUblocks startup smoke test failed."
+            exit 1
+          fi
 
       - name: Export Windows executable
         shell: bash
@@ -99,7 +120,7 @@ jobs:
           mkdir -p package/Source
           cp artifacts/RUblocks.exe package/RUblocks.exe
           cp project.godot export_presets.cfg README.md package/Source/
-          cp -R scenes scripts cloudflare .github package/Source/
+          cp -R scenes scripts cloudflare .github assets package/Source/
           cat > package/README_RU.txt <<'TXT'
           RUblocks — Windows EXE + исходники
 

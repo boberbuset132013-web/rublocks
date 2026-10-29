@@ -50,6 +50,10 @@ var volume_value := 0.8
 
 func _ready() -> void:
 	get_window().title = "RUblocks"
+	get_window().min_size = Vector2i(900, 600)
+	var icon_texture := load("res://assets/rublocks_icon.svg") as Texture2D
+	if icon_texture != null:
+		DisplayServer.set_icon(icon_texture.get_image())
 	_load_saved_places()
 	_show_boot()
 
@@ -773,8 +777,8 @@ func _connect_room() -> void:
 		room_id = "lobby"
 	network_socket = WebSocketPeer.new()
 	var url := API_BASE.replace("https://", "wss://") + "/api/rooms/" + room_id.uri_encode() + "/ws"
-	var headers := PackedStringArray(["Authorization: Bearer " + auth_token])
-	var error_code := network_socket.connect_to_url(url, null, PackedStringArray(), headers)
+	network_socket.handshake_headers = PackedStringArray(["Authorization: Bearer " + auth_token])
+	var error_code := network_socket.connect_to_url(url)
 	if error_code != OK:
 		_append_chat("Чат сервера пока недоступен — используется локальный чат.")
 
@@ -1228,7 +1232,8 @@ func _remove_selected_object() -> void:
 	_refresh_editor_properties()
 
 func _add_editor_object(kind: String = "Куб") -> void:
-	var count := current_place.get("objects", []).size() + 1
+	var existing_objects: Array = current_place.get("objects", [])
+	var count: int = existing_objects.size() + 1
 	var object_id := Crypto.new().generate_random_bytes(16).hex_encode()
 	var object_data := {
 		"id": object_id,
@@ -1240,9 +1245,8 @@ func _add_editor_object(kind: String = "Куб") -> void:
 		"rules": [],
 		"script": ""
 	}
-	var objects: Array = current_place.get("objects", [])
-	objects.append(object_data)
-	current_place["objects"] = objects
+	existing_objects.append(object_data)
+	current_place["objects"] = existing_objects
 	selected_object_id = object_id
 	_render_editor_objects()
 	_refresh_editor_lists()
@@ -1261,7 +1265,7 @@ func _set_spawn_point() -> void:
 func _choose_background() -> void:
 	var dialog := FileDialog.new()
 	dialog.title = "Выбери изображение фона и обложки"
-	dialog.file_mode = FileDialog.FILE_MODE_OPEN
+	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp ; Изображения"])
 	add_child(dialog)

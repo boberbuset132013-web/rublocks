@@ -3,6 +3,7 @@ config_version=5
 [application]
 config/name="RUblocks"
 config/description="RUblocks — конструктор 3D-миров и игр"
+config/icon="res://assets/rublocks_icon.svg"
 run/main_scene="res://scenes/main.tscn"
 
 [display]

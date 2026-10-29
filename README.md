@@ -5,6 +5,7 @@ RUblocks is a Windows desktop 3D sandbox prototype built with Godot 4. This repo
 ## Included in this milestone
 
 - Blue startup/loading screen and a dark main menu.
+- Custom white **R** on a red square app/executable icon.
 - Login/register screen with rotating, falling red 3D cubes over a black background.
 - 3D test place, WASD/arrow movement, jump, chat and Escape menu.
 - Player list, settings, leave button, and reset controlled by the place author's reset setting.
@@ -20,7 +21,7 @@ RUblocks is a Windows desktop 3D sandbox prototype built with Godot 4. This repo
 2. Open the latest **Build Windows EXE** workflow run.
 3. If it finishes successfully, download the artifact named **RUblocks-Windows-EXE**. It contains RUblocks.exe.
 
-The first workflow run can fail if the latest upstream Godot release changes its asset names. If it fails, open the failed step and share its log.
+The workflow validates GDScript, starts the project headlessly to catch startup errors, and exports the Windows EXE only if those checks pass.
 
 ## Run locally in Godot
 
