@@ -100,6 +100,27 @@ async function handler(request, env) {
   }
 
   const placeMatch = path.match(/^\/api\/places\/([a-f0-9-]+)$/i);
+  if (placeMatch && method === "GET") {
+    const place = await env.DB.prepare("SELECT id, owner_id, owner_username, title, description, project_json, published, updated_at FROM places WHERE id = ?")
+      .bind(placeMatch[1]).first();
+    if (!place) return fail("Place not found.", 404);
+    if (!place.published) {
+      const user = await currentUser(request, env);
+      if (!user || user.id !== place.owner_id) return fail("This place is private.", 403);
+    }
+    let project = {};
+    try { project = JSON.parse(place.project_json || "{}"); } catch { return fail("Stored project data is invalid.", 500); }
+    return reply({ ok: true, place: {
+      id: place.id,
+      title: place.title,
+      description: place.description,
+      owner_username: place.owner_username,
+      published: Boolean(place.published),
+      version: Number(place.updated_at),
+      project
+    } });
+  }
+
   if (placeMatch && method === "PUT") {
     const user = await currentUser(request, env);
     if (!user) return fail("Login required.", 401);

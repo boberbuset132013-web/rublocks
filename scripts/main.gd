@@ -501,7 +501,25 @@ func _edit_place(place: Dictionary) -> void:
 	_show_editor()
 
 func _open_place(place: Dictionary) -> void:
+	var is_local := false
+	for local_place in local_places:
+		if str(local_place.get("id", "")) == str(place.get("id", "")):
+			is_local = true
+			break
 	current_place = place.duplicate(true)
+	if not is_local and bool(place.get("published", false)):
+		var downloaded: Dictionary = await _api_call(HTTPClient.METHOD_GET, "/api/places/" + str(place.get("id", "")), {}, false)
+		if not bool(downloaded.get("ok", false)):
+			var download_error: Dictionary = downloaded.get("data", {})
+			_show_message_overlay("Не удалось загрузить плейс: " + str(download_error.get("error", "ошибка сервера")))
+			return
+		var response_data: Dictionary = downloaded.get("data", {})
+		var remote_place: Dictionary = response_data.get("place", {})
+		var remote_project: Variant = remote_place.get("project", {})
+		if remote_project is Dictionary:
+			current_place = remote_project.duplicate(true)
+			current_place["remote_id"] = str(place.get("id", ""))
+			current_place["published"] = true
 	if not current_place.has("objects"):
 		current_place["objects"] = []
 	if not current_place.has("spawn_position"):
@@ -1049,6 +1067,15 @@ func _get_selected_object() -> Dictionary:
 			return object_data
 	return {}
 
+func _set_selected_position_axis(value: float, object_id: String, axis: int) -> void:
+	for object_data in current_place.get("objects", []):
+		if str(object_data.get("id", "")) == object_id:
+			var position_data: Array = object_data.get("position", [0.0, 0.5, 0.0])
+			position_data[axis] = value
+			object_data["position"] = position_data
+			_render_editor_objects()
+			return
+
 func _refresh_editor_properties() -> void:
 	if not is_instance_valid(properties_box):
 		return
@@ -1094,6 +1121,21 @@ func _refresh_editor_properties() -> void:
 		_render_editor_objects()
 	)
 	properties_box.add_child(color_picker)
+	_label(properties_box, "Позиция X / Y / Z", 13)
+	var pos_data: Array = selected.get("position", [0.0, 0.5, 0.0])
+	var object_id_for_position := str(selected.get("id", ""))
+	for axis in range(3):
+		var axis_row := HBoxContainer.new()
+		properties_box.add_child(axis_row)
+		_label(axis_row, ["X", "Y", "Z"][axis], 12)
+		var axis_spin := SpinBox.new()
+		axis_spin.min_value = -50.0
+		axis_spin.max_value = 50.0
+		axis_spin.step = 0.1
+		axis_spin.value = float(pos_data[axis])
+		axis_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		axis_spin.value_changed.connect(_set_selected_position_axis.bind(object_id_for_position, axis))
+		axis_row.add_child(axis_spin)
 	_label(properties_box, "Размер", 13)
 	var scale_spin := SpinBox.new()
 	scale_spin.min_value = 0.2
@@ -1207,8 +1249,14 @@ func _add_editor_object(kind: String = "Куб") -> void:
 	_refresh_editor_properties()
 
 func _set_spawn_point() -> void:
-	current_place["spawn_position"] = [0.0, 1.0, 0.0]
-	_show_message_overlay("Точка спавна установлена в центре мира.")
+	var selected := _get_selected_object()
+	if not selected.is_empty():
+		var pos: Array = selected.get("position", [0.0, 0.5, 0.0])
+		var scale_data: Array = selected.get("scale", [1.0, 1.0, 1.0])
+		current_place["spawn_position"] = [float(pos[0]), float(pos[1]) + float(scale_data[1]) * 0.5 + 1.0, float(pos[2])]
+	else:
+		current_place["spawn_position"] = [0.0, 1.0, 0.0]
+	_show_message_overlay("Точка спавна установлена.")
 
 func _choose_background() -> void:
 	var dialog := FileDialog.new()
