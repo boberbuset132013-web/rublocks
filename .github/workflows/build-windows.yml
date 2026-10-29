@@ -1,0 +1,101 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    name: Export RUblocks for Windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download latest stable Godot and Windows export templates
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import urllib.request
+          import zipfile
+          import shutil
+
+          api = "https://api.github.com/repos/godotengine/godot/releases/latest"
+          req = urllib.request.Request(api, headers={"Accept": "application/vnd.github+json", "User-Agent": "RUblocks-build"})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              release = json.load(response)
+
+          assets = release.get("assets", [])
+          linux_asset = next((a for a in assets if a["name"].endswith("_linux.x86_64.zip")), None)
+          template_asset = next((a for a in assets if a["name"].endswith("_export_templates.tpz")), None)
+          if linux_asset is None or template_asset is None:
+              raise SystemExit("Could not find the stable Linux editor or export templates in the latest Godot release.")
+
+          root = pathlib.Path(".ci/godot")
+          root.mkdir(parents=True, exist_ok=True)
+          for asset, filename in ((linux_asset, ".ci/godot.zip"), (template_asset, ".ci/templates.tpz")):
+              request = urllib.request.Request(asset["browser_download_url"], headers={"User-Agent": "RUblocks-build"})
+              with urllib.request.urlopen(request, timeout=180) as response, open(filename, "wb") as output:
+                  output.write(response.read())
+
+          with zipfile.ZipFile(".ci/godot.zip") as archive:
+              archive.extractall(root)
+          executables = list(root.rglob("Godot_*_linux.x86_64"))
+          if not executables:
+              executables = [p for p in root.rglob("*") if p.is_file() and p.name.lower().startswith("godot") and "linux" in p.name.lower()]
+          if not executables:
+              raise SystemExit("Godot Linux executable was not found after extracting the release.")
+          godot = executables[0]
+          godot.chmod(0o755)
+
+          version = release["tag_name"].split("-")[0] + ".stable"
+          template_dir = pathlib.Path.home() / ".local/share/godot/export_templates" / version
+          template_dir.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(".ci/templates.tpz") as archive:
+              archive.extractall(".ci/template_unpack")
+          unpack_root = pathlib.Path(".ci/template_unpack")
+          source = unpack_root / "templates"
+          if not source.is_dir():
+              source = unpack_root
+          for path in source.iterdir():
+              target = template_dir / path.name
+              if path.is_dir():
+                  shutil.copytree(path, target, dirs_exist_ok=True)
+              else:
+                  shutil.copy2(path, target)
+          with open(".ci/godot_path", "w", encoding="utf-8") as output:
+              output.write(str(godot.resolve()))
+          print("Using Godot release:", release["tag_name"])
+          print("Export templates installed at:", template_dir)
+          PY
+
+      - name: Validate project and import resources
+        shell: bash
+        run: |
+          GODOT_BIN="$(cat .ci/godot_path)"
+          "$GODOT_BIN" --version
+          "$GODOT_BIN" --headless --editor --path . --quit
+
+      - name: Export Windows executable
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          GODOT_BIN="$(cat .ci/godot_path)"
+          "$GODOT_BIN" --headless --path . --export-release "Windows Desktop" artifacts/RUblocks.exe
+          test -s artifacts/RUblocks.exe
+
+      - name: Upload Windows EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RUblocks-Windows-EXE
+          path: artifacts/RUblocks.exe
+          if-no-files-found: error
+          retention-days: 14

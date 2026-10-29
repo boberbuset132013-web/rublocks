@@ -1,0 +1,16 @@
+name = "rublocks"
+main = "worker.js"
+compatibility_date = "2026-10-29"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rublocks-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "GameRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoom"]
