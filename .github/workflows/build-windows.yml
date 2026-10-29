@@ -92,10 +92,38 @@ jobs:
           "$GODOT_BIN" --headless --path . --export-release "Windows Desktop" artifacts/RUblocks.exe
           test -s artifacts/RUblocks.exe
 
+      - name: Prepare complete project package
+        shell: bash
+        run: |
+          rm -rf package
+          mkdir -p package/Source
+          cp artifacts/RUblocks.exe package/RUblocks.exe
+          cp project.godot export_presets.cfg README.md package/Source/
+          cp -R scenes scripts cloudflare .github package/Source/
+          cat > package/README_RU.txt <<'TXT'
+          RUblocks — Windows EXE + исходники
+
+          RUblocks.exe — собранное Windows-приложение x64.
+          Source/project.godot — открой в Godot 4, чтобы редактировать исходники.
+          Source/cloudflare/README.md — настройка серверной части.
+
+          Онлайн-регистрация, публикация и сетевой чат требуют, чтобы Cloudflare Worker
+          с кодом Source/cloudflare/worker.js был развёрнут и имел привязки D1 DB и
+          Durable Objects ROOMS. CI собрал EXE, но не изменяет твой Cloudflare-аккаунт.
+          TXT
+
       - name: Upload Windows EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: RUblocks-Windows-EXE
           path: artifacts/RUblocks.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload complete package (EXE + source)
+        uses: actions/upload-artifact@v4
+        with:
+          name: RUblocks-Complete-Package
+          path: package/**
           if-no-files-found: error
           retention-days: 14
