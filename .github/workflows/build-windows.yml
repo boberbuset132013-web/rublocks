@@ -148,3 +148,62 @@ jobs:
           path: package/**
           if-no-files-found: error
           retention-days: 14
+
+  installer:
+    name: Build Windows installer
+    needs: export
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows application
+        uses: actions/download-artifact@v4
+        with:
+          name: RUblocks-Windows-EXE
+          path: installer-input
+
+      - name: Create Windows icon and install Inno Setup
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $bitmap = New-Object System.Drawing.Bitmap(256, 256)
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+          $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+          $graphics.Clear([System.Drawing.Color]::FromArgb(5, 7, 12))
+          $red = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(227, 38, 54))
+          $graphics.FillRectangle($red, 18, 18, 220, 220)
+          $font = New-Object System.Drawing.Font("Arial", 178, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+          $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+          $format = New-Object System.Drawing.StringFormat
+          $format.Alignment = [System.Drawing.StringAlignment]::Center
+          $format.LineAlignment = [System.Drawing.StringAlignment]::Center
+          $graphics.DrawString("R", $font, $white, (New-Object System.Drawing.RectangleF(18, 12, 220, 230)), $format)
+          $iconHandle = $bitmap.GetHicon()
+          $icon = [System.Drawing.Icon]::FromHandle($iconHandle)
+          $stream = [System.IO.File]::Create((Join-Path $PWD "assets/rublocks_icon.ico"))
+          $icon.Save($stream)
+          $stream.Dispose()
+          $icon.Dispose()
+          $graphics.Dispose()
+          $bitmap.Dispose()
+          choco install innosetup --no-progress -y
+
+      - name: Compile RUblocks setup
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $compiler = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $compiler)) { throw "Inno Setup compiler was not found." }
+          & $compiler "installer/RUblocks.iss"
+          if (!(Test-Path "artifacts/RUblocks-Setup.exe")) { throw "RUblocks setup executable was not generated." }
+
+      - name: Upload RUblocks installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: RUblocks-Setup-Installer
+          path: artifacts/RUblocks-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
