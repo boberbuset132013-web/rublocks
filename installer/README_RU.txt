@@ -1,0 +1,1 @@
+RUblocks installer folder. The build workflow compiles the Windows setup executable.
